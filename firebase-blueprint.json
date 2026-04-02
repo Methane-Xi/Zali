@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "A user profile with role-based access control.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "The user's profile picture URL."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "pastor", "volunteer", "viewer"],
+          "description": "The user's role in the application."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the user was created."
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Presentation": {
+      "title": "Presentation",
+      "description": "A saved presentation or service history.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier of the presentation."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the presentation."
+        },
+        "authorUid": {
+          "type": "string",
+          "description": "The UID of the user who created the presentation."
+        },
+        "slides": {
+          "type": "array",
+          "description": "The slides in the presentation.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["verse", "lyric", "note", "media"],
+                "description": "The type of slide."
+              },
+              "content": {
+                "type": "string",
+                "description": "The content of the slide."
+              },
+              "reference": {
+                "type": "string",
+                "description": "The scripture reference or song title."
+              },
+              "background": {
+                "type": "string",
+                "description": "The background image or color."
+              }
+            },
+            "required": ["type", "content"]
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the presentation was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the presentation was last updated."
+        }
+      },
+      "required": ["id", "title", "authorUid", "slides", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores user profiles."
+    },
+    "/presentations/{presentationId}": {
+      "schema": {
+        "$ref": "#/entities/Presentation"
+      },
+      "description": "Stores saved presentations."
+    }
+  }
+}

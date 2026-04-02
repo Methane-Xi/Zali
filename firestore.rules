@@ -1,0 +1,132 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: admin, pastor, volunteer, viewer)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: presentations
+    // Document ID: {presentationId}
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - title: string (required)
+    //   - authorUid: string (required, immutable)
+    //   - slides: list (required)
+    //   - createdAt: timestamp (required, immutable)
+    //   - updatedAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role 
+        : 'viewer';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (getUserRole() == 'admin' || request.auth.token.email == "methaneex@gmail.com");
+    }
+
+    function isPastor() {
+      return isAuthenticated() && getUserRole() == 'pastor';
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'pastor', 'volunteer', 'viewer'] &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && isValidUrl(data.photoURL))) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPresentation(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'authorUid', 'slides', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.authorUid is string && data.authorUid.size() > 0 && data.authorUid.size() < 100 &&
+             data.slides is list && data.slides.size() <= 200 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    isOwner(userId) && request.resource.data.uid == userId &&
+                    ((request.resource.data.role == 'viewer') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    isOwner(userId) && request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    ((request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /presentations/{presentationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPresentation(request.resource.data) &&
+                    request.resource.data.authorUid == request.auth.uid &&
+                    request.resource.data.id == presentationId;
+      allow update: if isAuthenticated() && isValidPresentation(request.resource.data) &&
+                    isDocOwner() &&
+                    request.resource.data.id == resource.data.id &&
+                    request.resource.data.authorUid == resource.data.authorUid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner() || isAdmin();
+    }
+    match /live_state/{stateId} {
+      allow read: if true; // Anyone can read the live state (for the display)
+      allow write: if isAuthenticated() && (isAdmin() || isPastor());
+    }
+  }
+}

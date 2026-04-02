@@ -1,0 +1,7 @@
+{
+  "name": "VAIL - AI Church Display",
+  "description": "AI-powered church display app with real-time audio recognition, verse detection, and intelligent layouts.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
